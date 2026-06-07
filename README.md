@@ -1,4 +1,4 @@
-# xcb playground
+# XCB playground
 
 Playground to familiarize myself with the [X Window System](https://xorg.freedesktop.org/archive/current/doc/index.html) in general and [XCB](https://xcb.freedesktop.org/) in particular.
 
@@ -26,6 +26,6 @@ The X protocol itself only defines a couple of atoms. (Actually, it only defines
 
 You can use the `xprop` utility to query the atoms of a window by clicking on it.
 
-Unfortunately, it seems you cannot affect the stacking order of a window under i3wm:
+Unfortunately, it seems you cannot affect the stacking order of a window when using i3wm:
 - `_NET_WM_STATE_{ABOVE|BELOW}`: is ignored (<https://github.com/i3/i3/issues/4265>)
 - `XCB_CONFIG_WINDOW_STACK_MODE`: dito
