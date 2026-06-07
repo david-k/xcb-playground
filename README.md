@@ -5,7 +5,7 @@ Playground to familiarize myself with the [X Window System](https://xorg.freedes
 - [X11 protocol spec](https://xorg.freedesktop.org/archive/current/doc/xproto/x11protocol.html)
 - [XCB tutorial](https://xcb.freedesktop.org/tutorial/)
 
-Configuring the properties of a window is very flexible by using a list of key-value pairs. The keys are called *atoms* and are simple integer IDs represented as `uint32_t`. Given a name of an atom like WM_NAME (representing a window's title), the corresponding ID can be requested using `xcb_intern_atom()`. Once you have the ID, the value associated with the atom can be changed using `xcb_change_property()`.
+Configuring the properties of a window is very flexible by using a list of key-value pairs. The keys are called *atoms* and are simple integer IDs represented as `uint32_t`. Given a name of an atom like `WM_NAME` (representing a window's title), the corresponding ID can be requested using `xcb_intern_atom()`. Once you have the ID, the value associated with the atom can be changed using `xcb_change_property()`.
 
 The X protocol itself only defines a couple of atoms. (Actually, it only defines their IDs, but not their semantics.) More are defined by separate specifications:
 - ICCCM (Inter-Client Communication Conventions Manual)
@@ -26,6 +26,6 @@ The X protocol itself only defines a couple of atoms. (Actually, it only defines
 
 You can use the `xprop` utility to query the atoms of a window by clicking on it.
 
-Unfortunately, i3wm ignores any operation affecting the stacking order
-- `_NET_WM_STATE_{ABOVE|BELOW}` is ignored: https://github.com/i3/i3/issues/4265
-- `XCB_CONFIG_WINDOW_STACK_MODE` is ignored (it seems)
+Unfortunately, it seems you cannot affect the stacking order of a window under i3wm:
+- `_NET_WM_STATE_{ABOVE|BELOW}`: is ignored (<https://github.com/i3/i3/issues/4265>)
+- `XCB_CONFIG_WINDOW_STACK_MODE`: dito
