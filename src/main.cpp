@@ -723,7 +723,8 @@ struct Renderer
 
 constexpr int smile_char_width = 75;
 constexpr int smile_char_height = 26;
-constexpr char smile[] =
+// What good is a text editor that can't :smile
+constexpr char vim_smile[] =
 	R"(                          oooo$$$$$$$$$$$$oooo                             )"
 	R"(                      oo$$$$$$$$$$$$$$$$$$$$$$$$o                          )"
 	R"(                   oo$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$o         o$   $$ o$    )"
@@ -751,7 +752,7 @@ constexpr char smile[] =
 	R"(                                     $$$$$$$$$$"                           )"
 	R"(                                      "$$$""""                             )";
 
-static_assert(std::size(smile) == smile_char_width * smile_char_height + 1); // +1 for null terminator
+static_assert(std::size(vim_smile) == smile_char_width * smile_char_height + 1); // +1 for null terminator
 
 void render(xcb::Connection &conn, xcb::Renderer renderer)
 {
@@ -774,7 +775,7 @@ void render(xcb::Connection &conn, xcb::Renderer renderer)
 	{
 		for (int xcell = 0; xcell < smile_char_width; ++xcell)
 		{
-			if (smile[ycell * smile_char_width + xcell] != ' ')
+			if (vim_smile[ycell * smile_char_width + xcell] != ' ')
 			{
 				xcb_rectangle_t rect{
 					.x = int16_t(top_left_x + xcell * (cell_width + cell_margin)),
