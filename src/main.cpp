@@ -110,6 +110,12 @@ struct Connection
 		return atom;
 	}
 
+	void request_window_events(xcb_window_t window, uint32_t events)
+	{
+		xcb_change_window_attributes(inner, window, XCB_CW_EVENT_MASK, &events);
+		xcb_flush(inner);
+	}
+
 	// The cookie must come from one of the xcb_{...}_checked() functions
 	void throw_on_error(xcb_void_cookie_t cookie, std::string const &msg)
 	{
@@ -125,19 +131,25 @@ struct Connection
 };
 
 
-struct SignalEvent
+struct Signal
 {
 	int signum;
 };
 
-using Event = std::variant<xcb_generic_event_t*, SignalEvent>;
+using Event = std::variant<xcb_generic_event_t*, Signal>;
 
-struct EventHandler
+struct PollFds
+{
+	constexpr static size_t count = 2;
+	struct pollfd signals;
+	struct pollfd xcb;
+};
+
+struct EventLoopState
 {
 	constexpr static int signals_to_handle[] = {SIGINT, SIGTERM};
 
-	explicit EventHandler(Connection &conn) :
-		conn{conn}
+	explicit EventLoopState(Connection &conn)
 	{
 		// Block signals in signals_to_handle so we can read them via signalfd
 		sigset_t sset;
@@ -145,7 +157,7 @@ struct EventHandler
 		for(int signum: signals_to_handle)
 			sigaddset(&sset, signum);
 
-		if (pthread_sigmask(SIG_SETMASK, &sset, nullptr) != 0)
+		if (pthread_sigmask(SIG_SETMASK, &sset, &original_sset) != 0)
 			throw std::runtime_error("pthread_sigmask failed");
 
 		int signal_fd = signalfd(-1, &sset, SFD_NONBLOCK | SFD_CLOEXEC);
@@ -159,78 +171,67 @@ struct EventHandler
 		};
 	}
 
-	// There is usually only one EventHandler for the entire runtime of the application so we don't
-	// bother unblocking signals and closing file descriptors in the destructor
-
-	void request_window_events(xcb_window_t window, uint32_t events)
+	~EventLoopState()
 	{
-		xcb_change_window_attributes(conn.inner, window, XCB_CW_EVENT_MASK, &events);
-		xcb_flush(conn.inner);
+		pthread_sigmask(SIG_SETMASK, &original_sset, nullptr);
+		close(poll_fds.signals.fd);
 	}
 
-	std::generator<Event> events()
-	{
-		for (;;)
-		{
-			wait_for_events();
-
-			if (poll_fds.signals.revents & POLLIN)
-			{
-				for (;;)
-				{
-					struct signalfd_siginfo fdsi;
-					ssize_t bytes_read = read(poll_fds.signals.fd, &fdsi, sizeof(fdsi));
-					if (bytes_read == -1)
-					{
-						if (errno == EAGAIN)
-							break;
-						else
-							throw std::runtime_error("reading from signalfd failed");
-					}
-					assert(bytes_read == sizeof(fdsi));
-					co_yield SignalEvent(fdsi.ssi_signo);
-				}
-			}
-
-			if (poll_fds.xcb.revents & POLLIN)
-			{
-				while (xcb_generic_event_t *event = xcb_poll_for_event(conn.inner))
-				{
-					co_yield event;
-					free(event);
-				}
-			}
-		}
-	}
-
-	void wait_for_events()
-	{
-		for (;;)
-		{
-			// Wait for either signalfd or xcb to become ready
-			int result = poll((struct pollfd*)&poll_fds, PollFds::count, -1);
-			if (result == -1)
-			{
-				if (errno == EINTR)
-					continue;
-
-				throw std::runtime_error("poll failed");
-			}
-			else
-				break;
-		}
-	}
-
-	struct PollFds
-	{
-		constexpr static size_t count = 2;
-		struct pollfd signals;
-		struct pollfd xcb;
-	};
-
-	Connection &conn;
 	PollFds poll_fds;
+	sigset_t original_sset;
 };
+
+void wait_for_events(PollFds &poll_fds)
+{
+	for (;;)
+	{
+		// Wait for either signalfd or xcb to become ready
+		int result = poll((struct pollfd*)&poll_fds, PollFds::count, -1);
+		if (result == -1)
+		{
+			if (errno == EINTR)
+				continue;
+
+			throw std::runtime_error("poll failed");
+		}
+		else
+			break;
+	}
+}
+
+std::generator<Event> events(Connection &conn)
+{
+	EventLoopState state(conn);
+	for (;;)
+	{
+		wait_for_events(state.poll_fds);
+		if (state.poll_fds.signals.revents & POLLIN)
+		{
+			for (;;)
+			{
+				struct signalfd_siginfo fdsi;
+				ssize_t bytes_read = read(state.poll_fds.signals.fd, &fdsi, sizeof(fdsi));
+				if (bytes_read == -1)
+				{
+					if (errno == EAGAIN)
+						break;
+					else
+						throw std::runtime_error("reading from signalfd failed");
+				}
+				assert(bytes_read == sizeof(fdsi));
+				co_yield Signal(fdsi.ssi_signo);
+			}
+		}
+		if (state.poll_fds.xcb.revents & POLLIN)
+		{
+			while (xcb_generic_event_t *event = xcb_poll_for_event(conn.inner))
+			{
+				co_yield event;
+				free(event);
+			}
+		}
+	}
+}
 
 struct CreateWindowOptions
 {
@@ -811,7 +812,6 @@ int main(int, char *argv[])
 	}
 
 	xcb::Connection conn;
-	xcb::EventHandler handler(conn);
 	xcb_screen_t screen = conn.preferred_screen();
 	xcb_window_t window;
 	std::optional<xcb_atom_t> wm_delete_window_atom;
@@ -844,7 +844,7 @@ int main(int, char *argv[])
 		if (arg_fullscreen)
 			xcb::set_window_state(conn, screen.root, window, xcb::WindowState::FULLSCREEN, true);
 
-		handler.request_window_events(
+		conn.request_window_events(
 			screen.root,
 			// Needed for the CreateNotify event (note that we are requesting the event on the
 			// *parent* window)
@@ -856,7 +856,7 @@ int main(int, char *argv[])
 		window = screen.root;
 	}
 
-	handler.request_window_events(window,
+	conn.request_window_events(window,
 		XCB_EVENT_MASK_EXPOSURE |
 		XCB_EVENT_MASK_STRUCTURE_NOTIFY
 	);
@@ -866,11 +866,11 @@ int main(int, char *argv[])
 	renderer.set_foreground_color(smile_color);
 	render(conn, renderer);
 	xcb_flush(conn.inner);
-	for (xcb::Event event: handler.events())
+	for (xcb::Event event: xcb::events(conn))
 	{
 		bool cont = event | match
 		{
-			[&](xcb::SignalEvent e)
+			[&](xcb::Signal e)
 			{
 				if (e.signum == SIGINT || e.signum == SIGTERM)
 					return false;
