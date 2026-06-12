@@ -1,11 +1,8 @@
 # XCB playground
 
-<img src="screenshot.png">
-
 Playground to familiarize myself with the [X Window System](https://xorg.freedesktop.org/archive/current/doc/index.html) in general and [XCB](https://xcb.freedesktop.org/) in particular.
 
-- [X11 protocol spec](https://xorg.freedesktop.org/archive/current/doc/xproto/x11protocol.html)
-- [XCB tutorial](https://xcb.freedesktop.org/tutorial/)
+<img src="screenshot.png" height="500">
 
 Configuring the properties of a window is very flexible by using a list of key-value pairs. The keys are called *atoms* and are simple integer IDs represented as `uint32_t`. Given the name of an atom like `WM_NAME` (representing a window's title), the corresponding ID can be requested using `xcb_intern_atom()`. Once you have the ID, the value associated with the atom can be changed using `xcb_change_property()`.
 
