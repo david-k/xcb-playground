@@ -25,6 +25,6 @@ The X protocol itself only defines a couple of atoms. (Actually, it only defines
 
 You can use the `xprop` utility to query the atoms of a window by clicking on it.
 
-Unfortunately, it seems you cannot affect the stacking order of a window when using i3wm:
+Specific to i3wm:
 - `_NET_WM_STATE_{ABOVE|BELOW}`: is ignored (<https://github.com/i3/i3/issues/4265>)
-- `XCB_CONFIG_WINDOW_STACK_MODE`: dito
+- `_NET_WM_WINDOW_TYPE_DESKTOP`: dito

@@ -775,6 +775,8 @@ std::optional<std::string_view> next_arg(char** &argv)
 
 int main(int, char *argv[])
 {
+	// Command-line arguments
+	// ----------------------
 	// Instead of drawing the smile directly onto the desktop, draw it into a newly created window
 	bool arg_create_window = false;
 	// --- The following options only apply when using arg_create_window ---
@@ -786,10 +788,16 @@ int main(int, char *argv[])
 	// these kind of windows automatically at the top or bottom of the screen at full width (like
 	// i3bar)
 	bool arg_dock = false;
-	// Bypassing the window manager means the window won't have any decorations any cannot be
-	// moved/resized
-	bool arg_bypass_window_manager = false;
-
+	// Bypassing the window manager means the window won't have any decorations and cannot be
+	// moved/resized by the user (which are things normally handled by the WM).
+	// You can choose whether the window should be displayed above/below all other windows.
+	enum class BypassWM
+	{
+		NO,
+		YES_ABOVE,
+		YES_BELOW,
+	};
+	BypassWM arg_bypass_wm = BypassWM::NO;
 
 	next_arg(argv);
 	while(std::optional<std::string_view> arg = next_arg(argv))
@@ -802,8 +810,10 @@ int main(int, char *argv[])
 			arg_fullscreen = true;
 		else if (arg == "--dock")
 			arg_dock = true;
-		else if (arg == "--bypass-wm")
-			arg_bypass_window_manager = true;
+		else if (arg == "--bypass-wm-above")
+			arg_bypass_wm = BypassWM::YES_ABOVE;
+		else if (arg == "--bypass-wm-below")
+			arg_bypass_wm = BypassWM::YES_BELOW;
 		else
 		{
 			std::println(stderr, "Invalid option: {}", *arg);
@@ -826,10 +836,15 @@ int main(int, char *argv[])
 			.y = 100,
 			.width = 1000,
 			.height = 1000,
-			.bypass_window_manager = arg_bypass_window_manager
+			.bypass_window_manager = arg_bypass_wm != BypassWM::NO,
 		});
 		wm_delete_window_atom = xcb::enable_delete_window_event(conn, window);
 		xcb::set_window_title(conn, window, "smile");
+
+		if (arg_bypass_wm == BypassWM::YES_ABOVE)
+			xcb::set_window_stack_mode(conn, window, xcb::StackMode::ABOVE);
+		else if (arg_bypass_wm == BypassWM::YES_BELOW)
+			xcb::set_window_stack_mode(conn, window, xcb::StackMode::BELOW);
 
 		if (arg_no_decor)
 			xcb::set_window_decoration(conn, window, xcb::WindowDecoration::NONE);
