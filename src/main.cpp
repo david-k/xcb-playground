@@ -788,6 +788,8 @@ int main(int, char *argv[])
 	// these kind of windows automatically at the top or bottom of the screen at full width (like
 	// i3bar)
 	bool arg_dock = false;
+	// Request that the window is treated as a dialog. i3 will automatically make them floating.
+	bool arg_dialog = false;
 	// Bypassing the window manager means the window won't have any decorations and cannot be
 	// moved/resized by the user (which are things normally handled by the WM).
 	// You can choose whether the window should be displayed above/below all other windows.
@@ -814,6 +816,8 @@ int main(int, char *argv[])
 			arg_bypass_wm = BypassWM::YES_ABOVE;
 		else if (arg == "--bypass-wm-below")
 			arg_bypass_wm = BypassWM::YES_BELOW;
+		else if (arg == "--dialog")
+			arg_dialog = true;
 		else
 		{
 			std::println(stderr, "Invalid option: {}", *arg);
@@ -851,6 +855,9 @@ int main(int, char *argv[])
 
 		if (arg_dock)
 			xcb::set_window_type(conn, window, xcb::WindowType::DOCK);
+
+		if (arg_dialog)
+			xcb::set_window_type(conn, window, xcb::WindowType::DIALOG);
 
 		xcb_map_window(conn.inner, window);
 
